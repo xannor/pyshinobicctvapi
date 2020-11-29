@@ -2,93 +2,124 @@
 Shinobi API key management
 """
 
-from typing import Optional, List
+import json
+from .entity import Entity
+from .manager import Manager as EntityManager
+from typing import Dict, Iterable, Optional, List, Type
 
-from connection import Connection
+from .connection import Connection
 
-ACTION='monitor'
+ACTION = "monitor"
 
-DEFAULT = {
-    "details": {
-    }
-}
+DEFAULT = {"details": {}}
 
-class Manager:
-    def __init__(self, connection: Connection):
-        self._connection = connection
-
-    async def all(self) -> List[Monitor]:
-        """
-        Get a list of monitors for the current connection
-        """
-
-        json = await self._connection.get(self._connection.action_url(ACTION))
-        return list(map(Monitor), json['list'])
-
-    async def started(self) -> List[Monitor]:
-        """
-        Get a list of monitors for the current connection
-        """
-
-        json = await self._connection.get(self._connection.action_url(f's{ACTION}'))
-        return list(map(Monitor), json['list'])
 
 class Details:
-
     def __init__(self, details: dict = None):
         if details is None:
             details = {}
         self._details = details
 
-class Monitor:
 
-    def __init__(self, monitor: dict = None):
-        self._monitor = monitor
+class Stream:
+    def __init__(self, base_url: str, url: str, type: str):
+        self._base = base_url
+        self._url = url
+        self._type = type
+
+    @property
+    def url(self):
+        return self._base + self._url
+
+    @property
+    def type(self):
+        return self._type
+
+
+class StreamCollection:
+    def __init__(self, streams: Dict[str, Iterable[str]], base_url: str = None):
+        self._streams = streams
+        self._base_url = base_url
+
+    def __iter__(self):
+        for typ in self._streams:
+            for stm in self._streams[typ]:
+                yield Stream(self._base_url, stm, typ)
+
+    def __contains__(self, type):
+        return type in self._streams
+
+    def __getitem__(self, type):
+        return self._streams.get(type, [])
+
+
+class Monitor(Entity):
+    def __init__(self, data: dict = None, base_url: str = None):
+        super().__init__("mid", data)
+        self._base_url = base_url
 
     @property
     def name(self) -> Optional[str]:
-        return self._monitor.get('name')
+        return self._data.get("name")
 
     @property
     def type(self) -> Optional[str]:
-        return self._monitor.get('type')
+        return self._data.get("type")
 
     @property
     def ext(self) -> Optional[str]:
-        return self._monitor.get('ext')
+        return self._data.get("ext")
 
     @property
     def protocol(self) -> Optional[str]:
-        return self._monitor.get('protocol')
+        return self._data.get("protocol")
 
     @property
     def fps(self) -> Optional[int]:
-        return self._monitor.get('fps')
+        return self._data.get("fps")
 
     @property
     def mode(self) -> Optional[str]:
-        return self._monitor.get('mode')
+        return self._data.get("mode")
 
     @property
     def width(self) -> Optional[int]:
-        return self._monitor.get('width')
+        return self._data.get("width")
 
     @property
     def height(self) -> Optional[int]:
-        return self._monitor.get('height')
+        return self._data.get("height")
 
     @property
     def status(self) -> Optional[str]:
-        return self._monitor.get('status')
+        return self._data.get("status")
 
     @property
     def details(self):
-        return Details(self._monitor.setdefault('details', {}))
+        if not hasattr(self, "_details"):
+            self._details = json.loads(self._data.setdefault("details", "{}"))
+        return Details(self._details)
 
     @property
     def snapshot(self) -> Optional[str]:
-        return self._monitor.get('snapshot')
+        snapshot = self._data.get("snapshot")
+        if snapshot is None:
+            return None
+        return self._base_url + snapshot
 
     @property
-    def streams(self) -> List[str]:
-        return self._monitor.get('streams', [])
+    def streams(self) -> StreamCollection:
+        return StreamCollection(
+            self._data.get("streamsSortedByType", {}), self._base_url
+        )
+
+
+class Manager(EntityManager[Monitor]):
+    def __init__(self, connection: Connection):
+        super().__init__(connection, ACTION, Monitor)
+
+    async def async_started(self) -> Iterable[Monitor]:
+        """
+        Get a list of monitors for the current connection
+        """
+        return map(self._create, await self._async_action_get(f"s{ACTION}"))

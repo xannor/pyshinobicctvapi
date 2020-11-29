@@ -1,6 +1,7 @@
 from typing import Optional
 
-from connection import Connection
+from .connection import Connection
+
 
 class User:
     """
@@ -12,12 +13,12 @@ class User:
             user = {}
         self._user = user
 
-        #self._id = user['uid']
+        # self._id = user['uid']
 
     @property
     def email(self) -> Optional[str]:
-        return self._user.get('mail')
+        return self._user.get("mail")
 
     @property
     def group(self) -> Optional[str]:
-        return self._user.get('ke')
+        return self._user.get("ke")
