@@ -32,6 +32,7 @@ jobs:
         twine upload --repository testpypi dist/*
 
   deploy:
+    needs: [deploy_test]
 
     runs-on: ubuntu-latest
 
