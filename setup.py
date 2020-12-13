@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 setup(
     name="pyshinobicctvapi",
     packages=find_packages(include=["pyshinobicctvapi"]),
-    version="0.1.0",
+    version="0.2.0",
     description="Python Library for Shinobi CCTV API",
     author="Xannor Archouse",
     install_requires=["aiohttp"],

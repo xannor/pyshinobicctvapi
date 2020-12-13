@@ -5,7 +5,7 @@ Shinobi API key management
 import json
 from .entity import Entity
 from .manager import Manager as EntityManager
-from typing import Dict, Iterable, Optional, List, Type
+from typing import Dict, Iterable, Optional, List, Type, Mapping, Container, Iterator
 
 from .connection import Connection
 
@@ -22,10 +22,10 @@ class Details:
 
 
 class Stream:
-    def __init__(self, base_url: str, url: str, type: str):
+    def __init__(self, base_url: str, url: str, typ: str):
         self._base = base_url
         self._url = url
-        self._type = type
+        self._type = typ
 
     @property
     def url(self):
@@ -36,21 +36,59 @@ class Stream:
         return self._type
 
 
-class StreamCollection:
-    def __init__(self, streams: Dict[str, Iterable[str]], base_url: str = None):
+class StreamCollection(Iterable[Stream]):
+    def __init__(
+        self, streams: Dict[str, List[str]], base_url: str = None, typ: str = None
+    ):
         self._streams = streams
         self._base_url = base_url
+        self._type = typ
 
-    def __iter__(self):
+    def _iterateType(self, typ: str) -> Iterator[Stream]:
+        for stm in self._streams[typ]:
+            yield Stream(self._base_url, stm, typ)
+
+    def __iter__(self) -> Iterator[Stream]:
+        if self._type is not None:
+            for stm in self._iterateType(self._type):
+                yield stm
+            return
+
         for typ in self._streams:
-            for stm in self._streams[typ]:
-                yield Stream(self._base_url, stm, typ)
+            for stm in self._iterateType(typ):
+                yield stm
 
-    def __contains__(self, type):
-        return type in self._streams
+    def __contains__(self, typ):
+        if self._type is not None:
+            return type == self._type
 
-    def __getitem__(self, type):
-        return self._streams.get(type, [])
+        return typ in self._streams
+
+    def __getitem__(self, typ):
+        if self._type is not None and typ != self._type:
+            return
+        return self
+
+
+class TypedStreamCollection(
+    StreamCollection, Mapping[str, StreamCollection], Container[str]
+):
+    def __init__(
+        self,
+        streams: Dict[str, List[str]],
+        order: List[str],
+        base_url: str = None,
+    ):
+        super().__init__(streams, base_url)
+
+    def __len__(self):
+        return 0
+
+    def __getitem__(self, typ) -> StreamCollection:
+        if typ not in self._streams:
+            return None
+
+        return StreamCollection(self._streams, self._base_url, typ)
 
 
 class Monitor(Entity):
@@ -108,9 +146,11 @@ class Monitor(Entity):
         return self._base_url + snapshot
 
     @property
-    def streams(self) -> StreamCollection:
-        return StreamCollection(
-            self._data.get("streamsSortedByType", {}), self._base_url
+    def streams(self) -> TypedStreamCollection:
+        return TypedStreamCollection(
+            self._data.get("streamsSortedByType", {}),
+            self._data.get("streams"),
+            self._base_url,
         )
 
 

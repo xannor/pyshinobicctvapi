@@ -1,0 +1,1 @@
+STREAM_MJPEG = "mjpeg"
